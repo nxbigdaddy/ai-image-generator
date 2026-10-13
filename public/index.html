@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 图片生成器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      width: 100%;
+      max-width: 600px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    .row {
+      display: flex;
+      gap: 15px;
+    }
+    .row .form-group {
+      flex: 1;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .result img {
+      max-width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .loading {
+      display: none;
+      margin-top: 20px;
+    }
+    .loading.active {
+      display: block;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error {
+      color: #e74c3c;
+      margin-top: 15px;
+      padding: 12px;
+      background: #fde8e8;
+      border-radius: 8px;
+      display: none;
+    }
+    .error.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI 图片生成器</h1>
+    <form id="generateForm">
+      <div class="form-group">
+        <label for="prompt">图片描述</label>
+        <textarea id="prompt" placeholder="描述你想要生成的图片，例如：一只在月光下奔跑的金色猎犬" required></textarea>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label for="model">模型</label>
+          <select id="model">
+            <option value="qwen-image-2.0">qwen-image-2.0</option>
+            <option value="qwen-image-2.0-pro">qwen-image-2.0-pro</option>
+            <option value="wan2.7-image">wan2.7-image</option>
+            <option value="wan2.7-image-pro">wan2.7-image-pro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="size">尺寸</label>
+          <select id="size">
+            <option value="1024x1024">1024x1024</option>
+            <option value="1024x768">1024x768</option>
+            <option value="768x1024">768x1024</option>
+            <option value="512x512">512x512</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" id="submitBtn">生成图片</button>
+    </form>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>正在生成图片，请稍候...</p>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('generateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const result = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      submitBtn.disabled = true;
+      loading.classList.add('active');
+      error.classList.remove('active');
+      result.innerHTML = '';
+
+      const prompt = document.getElementById('prompt').value;
+      const model = document.getElementById('model').value;
+      const size = document.getElementById('size').value;
+
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, model, size }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          result.innerHTML = `<img src="${data.url}" alt="生成的图片">`;
+        } else {
+          throw new Error(data.error || '生成失败');
+        }
+      } catch (err) {
+        error.textContent = '错误: ' + err.message;
+        error.classList.add('active');
+      } finally {
+        submitBtn.disabled = false;
+        loading.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>

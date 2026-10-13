@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 图片生成器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 40px;
+      width: 100%;
+      max-width: 700px;
+    }
+    h1 {
+      text-align: center;
+      color: #00d4ff;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #a0a0a0;
+      font-weight: 500;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    .row {
+      display: flex;
+      gap: 15px;
+    }
+    .row .form-group {
+      flex: 1;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .result img {
+      max-width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+    .loading {
+      display: none;
+      margin-top: 20px;
+    }
+    .loading.active {
+      display: block;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error {
+      color: #ff6b6b;
+      margin-top: 15px;
+      padding: 12px;
+      background: rgba(255, 107, 107, 0.1);
+      border-radius: 8px;
+      display: none;
+    }
+    .error.active {
+      display: block;
+    }
+    .save-btn {
+      margin-top: 15px;
+      background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    }
+    .api-warning {
+      background: rgba(255, 193, 7, 0.1);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      color: #ffc107;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .api-warning.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI 图片生成器</h1>
+    
+    <div class="api-warning" id="apiWarning">
+      ⚠️ 未配置 API Key，请在 .env 文件中添加有效的 API Key
+    </div>
+
+    <form id="generateForm">
+      <div class="form-group">
+        <label for="prompt">图片描述</label>
+        <textarea id="prompt" placeholder="描述你想要生成的图片，例如：一只在月光下奔跑的金色猎犬" required></textarea>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label for="model">模型</label>
+          <select id="model">
+            <option value="qwen-image-2.0">qwen-image-2.0</option>
+            <option value="qwen-image-2.0-pro">qwen-image-2.0-pro</option>
+            <option value="wan2.7-image">wan2.7-image</option>
+            <option value="wan2.7-image-pro">wan2.7-image-pro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="size">尺寸</label>
+          <select id="size">
+            <option value="1024x1024">1024x1024</option>
+            <option value="1024x768">1024x768</option>
+            <option value="768x1024">768x1024</option>
+            <option value="512x512">512x512</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" id="submitBtn">生成图片</button>
+    </form>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>正在生成图片，请稍候...</p>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('generateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const result = document.getElementById('result');
+    const apiWarning = document.getElementById('apiWarning');
+
+    let currentImageUrl = null;
+
+    async function checkApiKey() {
+      const { hasKey } = await window.api.checkApiKey();
+      if (!hasKey) {
+        apiWarning.classList.add('active');
+        submitBtn.disabled = true;
+      }
+    }
+
+    checkApiKey();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      submitBtn.disabled = true;
+      loading.classList.add('active');
+      error.classList.remove('active');
+      result.innerHTML = '';
+      currentImageUrl = null;
+
+      const prompt = document.getElementById('prompt').value;
+      const model = document.getElementById('model').value;
+      const size = document.getElementById('size').value;
+
+      try {
+        const data = await window.api.generateImage({ prompt, model, size });
+
+        if (data.success) {
+          currentImageUrl = data.url;
+          result.innerHTML = `
+            <img src="${data.url}" alt="生成的图片">
+            <br>
+            <button class="save-btn" id="saveBtn">保存图片</button>
+          `;
+          document.getElementById('saveBtn').addEventListener('click', async () => {
+            const saveResult = await window.api.saveImage(currentImageUrl);
+            if (saveResult.success) {
+              alert('图片已保存到: ' + saveResult.path);
+            } else {
+              alert('保存失败: ' + saveResult.error);
+            }
+          });
+        } else {
+          throw new Error(data.error || '生成失败');
+        }
+      } catch (err) {
+        error.textContent = '错误: ' + err.message;
+        error.classList.add('active');
+      } finally {
+        submitBtn.disabled = false;
+        loading.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>
